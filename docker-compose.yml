@@ -1,0 +1,41 @@
+# Wersja składni Docker Compose
+version: '3.8'
+
+services:
+  # Definicja usługi bazy danych PostgreSQL
+  db:
+    # Użycie oficjalnego obrazu PostgreSQL w wersji 13
+    image: postgres:13
+    # Zmienne środowiskowe potrzebne do konfiguracji bazy danych
+    environment:
+      # Nazwa użytkownika bazy danych
+      POSTGRES_USER: postgres
+      # Hasło użytkownika
+      POSTGRES_PASSWORD: postgres
+      # Nazwa bazy danych, która zostanie utworzona
+      POSTGRES_DB: mybudgetdb
+    # Trwałe przechowywanie danych bazy danych
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+ # Definicja usługi aplikacji (np. Streamlit lub inna aplikacja)
+  app:
+    # Budowanie obrazu Dockera z bieżącego katalogu (gdzie znajduje się Dockerfile)
+    build: .
+    ports:
+    # Mapowanie portu aplikacji na port lokalny hosta
+      - "8501:8501"
+    environment:
+      # Adres URL do połączenia z bazą danych PostgreSQL
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/mybudgetdb
+      # DATABASE_URL: postgresql://admin:secret@db:5432/expenses
+      # Określenie zależności – aplikacja uruchomi się po uruchomieniu bazy danych
+    depends_on:
+      - db
+    volumes:
+      - ./data:/app/data
+
+# Definicja wolumenu do przechowywania danych PostgreSQL
+volumes:
+  postgres_data:
+

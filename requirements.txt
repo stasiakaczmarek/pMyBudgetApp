@@ -1,0 +1,6 @@
+numpy==1.24.3
+pandas==1.5.3
+streamlit==1.22.0
+plotly==5.11.0
+psycopg2-binary==2.9.5
+peewee==3.17.0
