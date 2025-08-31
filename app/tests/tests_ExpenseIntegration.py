@@ -5,11 +5,6 @@ import os
 os.environ['TEST_MODE'] = 'True'
 
 
-# Dlaczego nie mockujemy?
-# Testujemy interakcję z bazą danych - chcemy sprawdzić czy ORM (Peewee) poprawnie mapuje obiekty
-# Baza jest kontrolowana - Używamy SQLite in-memory, która jest izolowana (każdy test ma czystą bazę)
-# Testujemy rzeczywiste zachowanie - sprawdzamy czy zapytania SQL działają poprawnie
-
 import unittest
 from datetime import date
 # Import połączenia do bazy danych i modeli używanych w testach
@@ -17,8 +12,12 @@ from database import db
 from models import Expense, Category
 
 
+# In-memory SQLite <=> testy integracyjne
+# Faktycznie sprawdzamy, że rekord powstaje, jest modyfikowany, sumowany i usuwany w bazie
+# Tworzysz, modyfikujesz i usuwasz rekordy w prawdziwej tabeli, a nie w zamockowanym obiekcie
+# Sprawdzasz też agregację (category_summary) – czyli zachowanie aplikacji z realnymi danymi
+
 class TestExpense(unittest.TestCase):
-# Zestaw testów jednostkowych dla modelu Expense (Wydatek).
 # Każdy test startuje na świeżej, in-memory bazie SQLite.
 
     def setUp(self):

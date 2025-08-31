@@ -20,6 +20,8 @@ class Expense(BaseModel):
 
     @classmethod
     def create_expense(cls, amount, category, date=None):
+        if not Category.get_or_none(Category.name == category):
+            raise ValueError(f"Kategoria '{category}' nie istnieje lub została usunięta")
         if amount <= 0:
             raise ValueError("Kwota wydatku musi być większa od 0")
         if date is None:
@@ -65,14 +67,15 @@ class Category(BaseModel):
     is_active = BooleanField(default=True)
 
     @classmethod
-    def create_category(cls, name, color):
+    def create_category(cls, name, color=None):
         # Jeśli nazwa jest w PASTEL_COLORS, używamy przypisanego koloru
         if name in PASTEL_COLORS:
             color = PASTEL_COLORS[name]
         else:
             # Generujemy losowy pastelowy kolor, który nie jest jeszcze użyty
             used_colors = [c.color for c in cls.get_all_categories()]
-            color = cls.generate_unique_color(used_colors)
+            if color is None:
+                color = cls.generate_unique_color(used_colors)
         return cls.create(name=name, color=color, is_active=True)
 
     @staticmethod
@@ -89,20 +92,33 @@ class Category(BaseModel):
         return list(cls.select())
 
     @classmethod
-    def deactivate_category(category_name):
-        cat = Category.get_or_none(Category.name == category_name)
-        if cat:
-            cat.is_active = False
-            cat.save()
-            st.success(f"Kategoria '{category_name}' została zablokowana do nowych wydatków.")
+    def delete_with_expenses(cls, name):
+        try:
+            cat = cls.select().where(cls.name == name).first()
+            if not cat:
+                return False  # brak kategorii
 
-    @classmethod
-    def delete_by_name(cls, name):
-        cat = cls.get_or_none(cls.name == name)
-        if cat:
+            # Usuń wszystkie wydatki w tej kategorii
+            Expense.delete().where(Expense.category == name).execute()
+            # Usuń kategorię
             cat.delete_instance()
             return True
+        except Exception as e:
+            print("Błąd usuwania kategorii:", e)
+            return False
+
+    @classmethod
+    def deactivate_category(cls, name):
+        cat = cls.get_or_none(cls.name == name)
+        if cat and cat.is_active:
+            cat.is_active = False
+            cat.save()
+            return True
         return False
+
+    @classmethod
+    def get_active_categories(cls):
+        return cls.select().where(cls.is_active == True)
 
 
 # Tworzenie tabel tylko jeśli nie jesteśmy w trybie testowym

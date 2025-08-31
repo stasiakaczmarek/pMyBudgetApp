@@ -81,7 +81,7 @@ POLISH_MONTHS = {
 # Funkcja zwracająca listę dostępnych kategorii
 def get_categories():
     cats = [c.name for c in Category.get_all_categories()]
-    return cats if cats else DEFAULT_CATEGORIES
+    return [c for c in cats if Category.get_or_none(Category.name == c)]
 
 def monthly_expenses_by_category():
     try:
@@ -259,44 +259,145 @@ def manage_expenses():
 
 
 # Funkcja do dodawania i usuwania kategorii
+# def manage_categories():
+#     # Pobierz aktualne kategorie z bazy danych
+#     categories = get_categories()
+#
+#     # --- Dodawanie nowej kategorii ---
+#     with st.form("add_category"):
+#         new_category = st.text_input("Nowa kategoria")
+#         if st.form_submit_button("Dodaj kategorię"):
+#             if not new_category:
+#                 st.warning("Podaj nazwę kategorii!")
+#             elif new_category in categories:
+#                 st.warning("Ta kategoria już istnieje!")
+#             else:
+#                 try:
+#                     Category.create_category(new_category, color=None)
+#                     st.session_state.success_message = f"Dodano kategorię: {new_category}"
+#                     st.experimental_rerun()
+#                 except Exception as e:
+#                     st.error(f"Błąd dodawania kategorii: {e}")
+#
+#     # Wyświetlenie komunikatu po rerunie
+#     if "success_message" in st.session_state:
+#         st.success(st.session_state.success_message)
+#         del st.session_state.success_message
+#
+#     # --- Usuwanie kategorii ---
+#     if categories:
+#         with st.form("remove_category"):
+#             category_to_remove = st.selectbox("Wybierz kategorię do usunięcia", categories)
+#             if st.form_submit_button("Usuń kategorię"):
+#                 try:
+#                     Category.delete_by_name(category_to_remove)
+#                     st.success(f"Usunięto kategorię: {category_to_remove}")
+#                     st.experimental_rerun()
+#                 except Exception as e:
+#                     st.error(f"Błąd usuwania kategorii: {e}")
+#     else:
+#         st.info("Brak kategorii do usunięcia")
+#
+#     # --- Dezaktywacja kategorii ---
+#     if categories:
+#         with st.form("deactivate_category"):
+#             category_to_deactivate = st.selectbox("Wybierz kategorię do dezaktywacji", categories)
+#             if st.form_submit_button("Dezaktywuj kategorię"):
+#                 # Wywołanie metody modelu
+#                 Category.deactivate_category(category_to_deactivate)
+#
+#                 # Wyświetlenie komunikatu w UI
+#                 st.success(f"Kategoria '{category_to_deactivate}' została zablokowana do nowych wydatków.")
+#                 st.experimental_rerun()
+#     else:
+#         st.info("Brak kategorii do dezaktywacji")
+
+
 def manage_categories():
-    # Pobierz aktualne kategorie z bazy danych
-    categories = get_categories()
+    # Pobierz wszystkie kategorie z bazy
+    all_categories = [c.name for c in Category.get_all_categories()]
+    active_categories = [c.name for c in Category.get_active_categories()]
 
     # --- Dodawanie nowej kategorii ---
-    with st.form("add_category"):
+    with st.form("add_category_form"):
         new_category = st.text_input("Nowa kategoria")
         if st.form_submit_button("Dodaj kategorię"):
             if not new_category:
                 st.warning("Podaj nazwę kategorii!")
-            elif new_category in categories:
+            elif new_category in all_categories:
                 st.warning("Ta kategoria już istnieje!")
             else:
                 try:
-                    Category.create_category(new_category, color=None)
-                    st.session_state.success_message = f"Dodano kategorię: {new_category}"
+                    Category.create_category(new_category)
+                    st.success(f"Dodano kategorię: {new_category}")
                     st.experimental_rerun()
                 except Exception as e:
                     st.error(f"Błąd dodawania kategorii: {e}")
 
-    # Wyświetlenie komunikatu po rerunie
-    if "success_message" in st.session_state:
-        st.success(st.session_state.success_message)
-        del st.session_state.success_message
+    # --- Usuwanie kategorii wraz z wydatkami ---
+    with st.form("remove_category_form"):
+        category_to_remove = st.selectbox(
+            "Wybierz kategorię do usunięcia",
+            all_categories,
+            key="remove_category_select"
+        )
+        if st.form_submit_button("Usuń kategorię"):
+            try:
+                deleted = Category.delete_with_expenses(category_to_remove)
+                if deleted:
+                    export_to_csv()  # Zaktualizuj CSV
+                    st.success(
+                        f"Usunięto kategorię i wszystkie wydatki w niej zawarte: {category_to_remove}"
+                    )
+                else:
+                    st.warning("Nie znaleziono kategorii")
+            except Exception as e:
+                st.error(f"Błąd usuwania kategorii: {e}")
+            st.experimental_rerun()
 
-    # --- Usuwanie kategorii ---
-    if categories:
-        with st.form("remove_category"):
-            category_to_remove = st.selectbox("Wybierz kategorię do usunięcia", categories)
-            if st.form_submit_button("Usuń kategorię"):
+    # --- Dezaktywacja kategorii ---
+    if active_categories:
+        with st.form("deactivate_category_form"):
+            category_to_deactivate = st.selectbox(
+                "Wybierz kategorię do dezaktywacji",
+                active_categories,
+                key="deactivate_category_select"
+            )
+            if st.form_submit_button("Dezaktywuj kategorię"):
                 try:
-                    Category.delete_by_name(category_to_remove)
-                    st.success(f"Usunięto kategorię: {category_to_remove}")
-                    st.experimental_rerun()
+                    if Category.deactivate_category(category_to_deactivate):
+                        st.success(f"Kategoria '{category_to_deactivate}' została dezaktywowana")
+                        st.experimental_rerun()
+                    else:
+                        st.warning(f"Kategoria '{category_to_deactivate}' nie mogła zostać dezaktywowana")
                 except Exception as e:
-                    st.error(f"Błąd usuwania kategorii: {e}")
+                    st.error(f"Błąd dezaktywacji kategorii: {e}")
     else:
-        st.info("Brak kategorii do usunięcia")
+        st.info("Brak aktywnych kategorii do dezaktywacji")
+
+    # --- Aktywacja kategorii ---
+    inactive_categories = [c.name for c in Category.get_all_categories() if not c.is_active]
+    if inactive_categories:
+        with st.form("activate_category_form"):
+            category_to_activate = st.selectbox(
+                "Wybierz kategorię do aktywacji",
+                inactive_categories,
+                key="activate_category_select"
+            )
+            if st.form_submit_button("Aktywuj kategorię"):
+                try:
+                    cat = Category.get_or_none(Category.name == category_to_activate)
+                    if cat:
+                        cat.is_active = True
+                        cat.save()
+                        st.success(f"Kategoria '{category_to_activate}' została aktywowana")
+                    else:
+                        st.warning("Nie znaleziono kategorii")
+                except Exception as e:
+                    st.error(f"Błąd aktywacji kategorii: {e}")
+                st.experimental_rerun()
+    else:
+        st.info("Brak nieaktywnych kategorii do aktywacji")
 
 
 def average_monthly_expense_by_category():
@@ -327,35 +428,26 @@ def average_monthly_expense_by_category():
 st.title("Śledź swoje wydatki")
 
 # Formularz do dodawania nowego wydatku
+
 with st.form("new_expense"):
-    # Pole do wprowadzania kwoty (minimalna wartość 0.01)
-    amount = st.number_input("Kwota", min_value=0.0, step=0.01)
+    amount = st.number_input("Kwota", min_value=0.01, step=0.01)
 
-    # Wybór kategorii z listy rozwijanej
-    active_categories = [c.name for c in Category.select().where(Category.is_active == True)]
-    category = st.selectbox("Kategoria", options=active_categories)
+    # Pobieramy tylko aktywne kategorie
+    active_categories = [c.name for c in Category.get_active_categories()]
+    if not active_categories:
+        st.warning("Brak aktywnych kategorii. Dodaj lub aktywuj kategorię przed dodaniem wydatku.")
+    else:
+        category = st.selectbox("Kategoria", options=active_categories)
+        date = st.date_input("Data")
 
-    # Pole do wyboru daty
-    date = st.date_input("Data")
-
-    # Przycisk do wysłania formularza
-    submitted = st.form_submit_button("Dodaj wydatek")
-
-    # Jeśli formularz został wysłany
-    if submitted:
-        # Tworzymy nowy rekord wydatku w bazie danych
-        try:
-            Expense.create_expense(
-                amount=amount,
-                category=category,
-                date=date
-            )
-            export_to_csv()
-            st.success("Wydatek dodany!")
-            st.experimental_rerun()
-        except ValueError as e:
-            st.error(f"Niepoprawna wydatku: {e}")
-
+        if st.form_submit_button("Dodaj wydatek"):
+            try:
+                Expense.create_expense(amount=amount, category=category, date=date)
+                export_to_csv()
+                st.success("Wydatek dodany!")
+                st.experimental_rerun()
+            except ValueError as e:
+                st.error(f"Niepoprawny wydatek: {e}")
 
 
 # Zmień linię tworzącą zakładki na:

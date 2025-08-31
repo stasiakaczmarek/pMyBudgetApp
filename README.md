@@ -6,55 +6,109 @@ Aplikacja webowa napisana w **Streamlit** z wykorzystaniem **Peewee ORM** i bazy
 * zarządzanie kategoriami,
 * analizę trendów,
 * eksport/import danych z pliku CSV,
-* interaktywne wykresy (Plotly).
+* interaktywne wykresy.
 
 ---
 
-## 🔧 Uruchomienie lokalne
+## Uruchomienie lokalne
 
 ### 1. Klonowanie repozytorium
+Jeżeli folder pMyBudgetApp już istnieje, pomiń git clone i przejdź do folderu projektu.
 
 ```bash
+# 1. Bądź w folderze nadrzędnym (pMyBudgetApp)
+cd C:\Users\Anastasia\PycharmProjects\pMyBudgetApp
+```
+```bash
+# 2. Sklonuj repozytorium (jeżeli jeszcze nie sklonowane)
 git clone https://github.com/stasiakaczmarek/pMyBudgetApp.git
+```
+```bash
+# 3. Przejdź do folderu z projektem
 cd pMyBudgetApp
 ```
 
 ### 2. Utworzenie i aktywacja środowiska wirtualnego
+Jeżeli już masz venv, pomiń tworzenie.
 
 ```bash
+# Utworzenie środowiska (tylko za pierwszym razem)
 python -m venv venv
-source venv/bin/activate   # Linux/MacOS
-venv\Scripts\activate      # Windows
 ```
+```bash
+# Aktywacja środowiska
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+.\venv\Scripts\Activate.ps1
+```
+Po aktywacji powinno być (venv) na początku linii.
 
 ### 3. Instalacja zależności
 
 ```bash
 pip install -r requirements.txt
+python -m pip install --upgrade pip setuptools wheel
 ```
 
-### 4. Zmienna środowiskowa (opcjonalna)
+### 4. Inicjalizacja bazy danych (wymagane przy pierwszym uruchomieniu)
+Jeżeli nie istnieje:
+```bash
+New-Item -Path . -Name "init_db.py" -ItemType "file"
+```
+Otwórz plik init_db.py w edytorze (np. PyCharm) i wklej:
 
+"import os
+from app.database import db
+from app.models import Expense, Category
+os.environ['TEST_MODE'] = 'true'
+db.create_tables([Expense, Category])
+print('Tabele utworzone pomyślnie!')
+default_categories = [
+    'Jedzenie', 'Transport', 'Rozrywka', 'Mieszkanie', 'Zdrowie',
+    'Zakupy spożywcze', 'Wakacje', 'Ubrania', 'Trening', 'Torebki',
+    'Taksówki', 'Słodycze', 'Samochód', 'Rzęsy', 'Restauracje',
+    'Prezenty', 'Pielęgnacja', 'Paznokcie', 'Odpoczynek', 'Nauka',
+    'Makijaż', 'Komunikacja miejska', 'Inwestycje', 'Inne', 'Fastfoody',
+    'Elektronika', 'Czystość', 'Buty', 'Biżuteria'
+]
+for cat_name in default_categories:
+    Category.get_or_create(name=cat_name, defaults={'is_active': True})
+print('Domyślne kategorie dodane!')"
+
+```bash
+python init_db.py
+```
+Po wykonaniu można opcjonalnie usunąć plik:
+```bash
+Remove-Item init_db.py
+```
+
+5. Zmienna środowiskowa (opcjonalna)
 Jeżeli chcesz korzystać z PostgreSQL, ustaw dane dostępowe:
 
 ```bash
-export POSTGRES_DB=mybudgetdb
-export POSTGRES_USER=postgres
-export POSTGRES_PASSWORD=postgres
-export POSTGRES_HOST=localhost
+$env:POSTGRES_HOST = "localhost"
+$env:POSTGRES_PASSWORD = "postgres"
+$env:POSTGRES_USER = "postgres"
+$env:POSTGRES_DB = "mybudgetdb"
 ```
+W przeciwnym wypadku, aplikacja uruchomi się w trybie SQLite (TEST_MODE).
 
-W przeciwnym wypadku, aplikacja uruchomi się w trybie **SQLite** (TEST\_MODE).
-
-### 5. Uruchomienie aplikacji
+6. Uruchomienie aplikacji
 
 ```bash
-streamlit run app/main.py
+# Dla trybu SQLite (testowego)
+$env:TEST_MODE = "true"
+streamlit run app/app.py
 ```
 
-Aplikacja będzie dostępna pod adresem: [http://localhost:8501](http://localhost:8501)
+```bash
+# Dla trybu PostgreSQL
+streamlit run app/app.py
+```
 
----
+Aplikacja będzie dostępna pod adresem: http://localhost:8501
+
+
 
 ## Uruchomienie w Dockerze
 
@@ -86,6 +140,7 @@ Jeśli posiadasz plik `docker-compose.yml`, uruchom cały zestaw (aplikacja + Po
 docker-compose up --build
 ```
 
+Aplikacja będzie dostępna pod adresem: [http://localhost:8501](http://localhost:8501)
 ---
 
 ## Struktura projektu
