@@ -35,6 +35,7 @@ class TestExpense(unittest.TestCase):
             category="Zakupy",
             date=date(2024, 5, 1)
         )
+        # MA SENS, Tworzymy  wydatek, używany w większości testów
 
     def tearDown(self):
         # Wykonywane po każdym teście:
@@ -53,6 +54,7 @@ class TestExpense(unittest.TestCase):
         self.assertEqual(len(expenses), 1)
         # Powinien mieć kwotę 100.0
         self.assertEqual(expenses[0].amount, 100.0)
+        # MA SENS, pobiera wszystkie rekordy Expense z bazy więc testuje faktyczny odczyt z bazy,
 
     # TC3: Pobieranie wydatku po ID
     def test_get_expense_by_id(self):
@@ -64,6 +66,7 @@ class TestExpense(unittest.TestCase):
         self.assertEqual(expense.amount, 100.0)
         # Kategoria powinna być zgodna z setUp()
         self.assertEqual(expense.category, "Zakupy")
+        # MA SENS, bo pobiera konkretny wydatek po ID i weryfikuje jego wartości
 
     # TC4: Pobieranie nieistniejącego wydatku
     def test_get_expense_by_id_not_found(self):
@@ -71,6 +74,7 @@ class TestExpense(unittest.TestCase):
         # Oczekujemy None, a nie wyjątku.
         expense = Expense.get_by_id(999999999999)
         self.assertIsNone(expense)
+        # MA SENS, sprawdza, że metoda zwraca None dla nieistniejącego ID
 
     # TC5: Aktualizacja wydatku
     def test_update_expense(self):
@@ -84,6 +88,7 @@ class TestExpense(unittest.TestCase):
         # Weryfikujemy, czy kwota została zaktualizowana
         updated_expense = Expense.get_by_id(self.test_expense.id)
         self.assertEqual(updated_expense.amount, 150.0)
+        # MA SENS, bo aktualizuje kwotę wydatku i weryfikuje zapis w bazie
 
     # TC6: Usuwanie wydatku
     def test_delete_expense(self):
@@ -95,7 +100,7 @@ class TestExpense(unittest.TestCase):
 
         # Weryfikujemy, czy rekord został usunięty
         self.assertIsNone(Expense.get_by_id(self.test_expense.id))
-
+        # MA SENS, suwa wydatek i sprawdza, czy faktycznie już nie istnieje w bazie
 
     # TC7: Pobieranie podsumowania kategorii
     def test_category_summary(self):
@@ -126,6 +131,7 @@ class TestExpense(unittest.TestCase):
         zakupy_summary = next((s for s in summary if s.category == "Zakupy"), None)
         self.assertIsNotNone(zakupy_summary)
         self.assertAlmostEqual(zakupy_summary.total, 172.0)
+        # MA SENS, tworzy kilka wydatków, a następnie weryfikuje poprawność agregacji po kategoriach, czyli weryfikuje prawdziwą logikę sumowania w bazie danych
 
     # TC8: Tworzenie wydatku z ujemną kwotą
     def test_create_expense_negative_amount(self):
@@ -134,6 +140,7 @@ class TestExpense(unittest.TestCase):
                 amount=-50.0,
                 category="Zakupy",
                 date=date(2024, 5, 1))
+                # MA SENS, sprawdza walidację kwoty, testuje logikę biznesową, że nie można dodać wydatku <= 0
 
     # TC9: Tworzenie wydatku z zerową kwotą
     def test_create_expense_zero_amount(self):
@@ -141,13 +148,16 @@ class TestExpense(unittest.TestCase):
             Expense.create_expense(amount=0.0,
                            category="Zakupy",
                            date=date(2024, 5, 1))
+            # MA SENS, sprawdza walidację kwoty, testuje logikę biznesową, że nie można dodać wydatku <= 0
 
     # TC10: Aktualizacja nieistniejącego wydatku
     def test_update_nonexistent_expense(self):
         result = Expense.update_expense(999999999, amount=200.0)
         self.assertIsNone(result)
+        # MA SENS, sprawdza zachowanie metod dla nieistniejących rekordów
 
     # TC11: Usuwanie nieistniejącego wydatku
     def test_delete_nonexistent_expense(self):
         result = Expense.delete_expense(999999999)
         self.assertIsNone(result)
+        # MA SENS, sprawdza zachowanie metod dla nieistniejących rekordów

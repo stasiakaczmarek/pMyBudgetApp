@@ -35,10 +35,14 @@ Jeżeli już masz venv, pomiń tworzenie.
 # Utworzenie środowiska (tylko za pierwszym razem)
 python -m venv venv
 ```
+# Aktywacja środowiska (PowerShell)
 ```bash
-# Aktywacja środowiska
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
 .\venv\Scripts\Activate.ps1
+```
+# Aktywacja środowiska (CMD)
+```bash
+.\venv\Scripts\activate.bat
 ```
 Po aktywacji powinno być (venv) na początku linii.
 
@@ -50,64 +54,35 @@ python -m pip install --upgrade pip setuptools wheel
 ```
 
 ### 4. Inicjalizacja bazy danych (wymagane przy pierwszym uruchomieniu)
-Jeżeli nie istnieje:
-```bash
-New-Item -Path . -Name "init_db.py" -ItemType "file"
-```
-Otwórz plik init_db.py w edytorze (np. PyCharm) i wklej:
-
-"import os
-from app.database import db
-from app.models import Expense, Category
-os.environ['TEST_MODE'] = 'true'
-db.create_tables([Expense, Category])
-print('Tabele utworzone pomyślnie!')
-default_categories = [
-    'Jedzenie', 'Transport', 'Rozrywka', 'Mieszkanie', 'Zdrowie',
-    'Zakupy spożywcze', 'Wakacje', 'Ubrania', 'Trening', 'Torebki',
-    'Taksówki', 'Słodycze', 'Samochód', 'Rzęsy', 'Restauracje',
-    'Prezenty', 'Pielęgnacja', 'Paznokcie', 'Odpoczynek', 'Nauka',
-    'Makijaż', 'Komunikacja miejska', 'Inwestycje', 'Inne', 'Fastfoody',
-    'Elektronika', 'Czystość', 'Buty', 'Biżuteria'
-]
-for cat_name in default_categories:
-    Category.get_or_create(name=cat_name, defaults={'is_active': True})
-print('Domyślne kategorie dodane!')"
 
 ```bash
 python init_db.py
 ```
-Po wykonaniu można opcjonalnie usunąć plik:
-```bash
-Remove-Item init_db.py
-```
+Skrypt utworzy tabele w bazie danych i doda domyślne kategorie.
 
-5. Zmienna środowiskowa (opcjonalna)
-Jeżeli chcesz korzystać z PostgreSQL, ustaw dane dostępowe:
+5. Uruchomienie aplikacji
+Dla trybu SQLite (testowego - domyślny):
+```bash
+$env:TEST_MODE = "true"
+streamlit run app/app.py
+```
+Dla trybu PostgreSQL (opcjonalnie):
+Najpierw ustaw zmienne środowiskowe:
 
 ```bash
 $env:POSTGRES_HOST = "localhost"
 $env:POSTGRES_PASSWORD = "postgres"
 $env:POSTGRES_USER = "postgres"
 $env:POSTGRES_DB = "mybudgetdb"
+$env:TEST_MODE = "false"
 ```
-W przeciwnym wypadku, aplikacja uruchomi się w trybie SQLite (TEST_MODE).
-
-6. Uruchomienie aplikacji
+Następnie uruchom aplikację:
 
 ```bash
-# Dla trybu SQLite (testowego)
-$env:TEST_MODE = "true"
-streamlit run app/app.py
-```
-
-```bash
-# Dla trybu PostgreSQL
 streamlit run app/app.py
 ```
 
 Aplikacja będzie dostępna pod adresem: http://localhost:8501
-
 
 
 ## Uruchomienie w Dockerze
