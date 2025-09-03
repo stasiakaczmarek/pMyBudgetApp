@@ -1,148 +1,209 @@
+from datetime import datetime
 import pandas as pd
 from peewee import fn
 from models import Expense, Category
 from database import db, TEST_MODE
 import os
 # from datetime import datetime
+import logging
+
+# Dodaj logger
+logger = logging.getLogger(__name__)
+
+# Dlaczego w backup.py potrzebujemy loggera?
+# 1. Inny rodzaj operacji
+# models.py - operacje na bazie danych - błędy są rzucane jako wyjątki
+# backup.py - operacje na plikach i transformacje danych - potrzebujemy logować błędy, a nie tylko je rzucać
+# 2. Inna filozofia obsługi błędów
+# W models.py
+# def create_expense(amount, category, date):
+   # if amount <= 0:
+# Rzuca wyjątek
+       # raise ValueError("Kwota musi być większa od 0")
+
+# W backup.py
+# def import_from_csv():
+   # try:
+    # Może failować na wiele sposobów
+       # df = pd.read_csv(CSV_FILE)
+   # except Exception as e:
+       # Loguje błą
+       # logger.error(f"Błąd importu CSV: {e}")
+       # Ale nie przerywa działania aplikacji
 
 ENV_CSV = os.getenv("CSV_FILE")
 if ENV_CSV:
     CSV_FILE = ENV_CSV
 else:
     # base_dir = katalog nadrzędny względem pliku backup.py (czyli root projektu jeśli backup.py leży w app/)
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ""))
     candidates = [
-        os.path.join(base_dir, "data", "expenses.csv"),    # ../data/expenses.csv  <- pasuje do Twojego tree
-        os.path.join(base_dir, "app", "data", "expenses.csv"),
-        os.path.join("/app", "data", "expenses.csv"),      # stary dockerowy path (fallback)
-        os.path.join(os.getcwd(), "data", "expenses.csv"),  # ./data/expenses.csv uruchamiając z root
+        os.path.join(base_dir, "../data", "expenses.csv"),    # ../data/expenses.csv  <- pasuje do Twojego tree
+        os.path.join(base_dir, "", "data", "expenses.csv"),
+        os.path.join("", "data", "expenses.csv"),      # stary dockerowy path (fallback)
+        os.path.join(os.getcwd(), "../data", "expenses.csv"),  # ./data/expenses.csv uruchamiając z root
         os.path.join(os.getcwd(), "expenses.csv"),         # ./expenses.csv
     ]
     # wybierz pierwszy istniejący plik; jeśli żaden nie istnieje — użyj pierwszego (pierwszy praktyczny fallback)
     CSV_FILE = next((p for p in candidates if p and os.path.isfile(p)), candidates[0])
 
 def ensure_categories(expenses):
-    """
-    Sprawdza wszystkie kategorie w Expense i dodaje brakujące do tabeli Category jako aktywne.
-    """
+    # Sprawdza wszystkie kategorie w Expense i dodaje brakujące do tabeli Category jako aktywne
     existing_categories = {c.name for c in Category.select()}
     for e in expenses:
         if e.category not in existing_categories:
-            Category.create_category(e.category, color=None)  # kolor zostanie przypisany automatycznie
+            # Kolor zostanie przypisany automatycznie
+            Category.create_category(e.category, color=None)
             existing_categories.add(e.category)
 
-def import_from_csv():
+def import_from_csv(csv_file=None):
+    """
+    Importuje wydatki z CSV do bazy danych.
+
+    Parametry:
+    - csv_file: opcjonalna ścieżka do pliku CSV. Jeśli None, używa globalnego CSV_FILE.
+
+    Zwraca:
+    - Liczbę zaimportowanych rekordów.
+    """
     try:
-        # Spróbuj różnych kodowań i separatorów
+        path_to_use = csv_file or CSV_FILE
+        logger.info(f"Importuję CSV z: {path_to_use}")
+
+        # Próba odczytu w różnych kodowaniach
         try:
-            df = pd.read_csv(CSV_FILE, sep=',', encoding='utf-8-sig')  # utf-8-sig usuwa BOM
-        except:
+            df = pd.read_csv(path_to_use, sep=',', encoding='utf-8')  # najpierw zwykły utf-8
+        except Exception:
             try:
-                df = pd.read_csv(CSV_FILE, sep=',', encoding='utf-8-sig')
-            except:
-                df = pd.read_csv(CSV_FILE, sep=',', encoding='latin-1')
+                df = pd.read_csv(path_to_use, sep=',', encoding='utf-8-sig')  # fallback utf-8-sig
+            except Exception:
+                df = pd.read_csv(path_to_use, sep=',', encoding='latin-1')
 
         if df.empty:
-            print("Plik CSV jest pusty")
-            return
+            logger.info("Plik CSV jest pusty")
+            return 0
 
-        # Normalizuj nazwy kolumn (usuń spacje, zmień na małe litery)
-        df.columns = df.columns.str.strip().str.lower()
+        # Usuń BOM i nadmiarowe spacje w nagłówkach
+        df.columns = df.columns.str.strip().str.replace('\ufeff', '').str.lower()
 
-        expected_cols = {"id", "kwota", "kategoria", "data"}
-        if not expected_cols.issubset(set(df.columns)):
-            print(f"Niespodziewane kolumny: {df.columns}")
+        # Obsługa różnych wariantów nagłówków
+        possible_mappings = [
+            {"id": "id", "kwota": "amount", "kategoria": "category", "data": "date"},  # polskie
+            {"id": "id", "amount": "amount", "category": "category", "date": "date"}  # angielskie
+        ]
 
-        # Mapowanie nazw kolumn
-        column_mapping = {
-            'id': 'id',
-            'kwota': 'amount',
-            'kategoria': 'category',
-            'data': 'date'
-        }
+        for mapping in possible_mappings:
+            if set(mapping.keys()).issubset(set(df.columns)):
+                df = df.rename(columns=mapping)
+                break
+        else:
+            logger.error(f"Niespodziewane kolumny: {df.columns}")
+            return 0
 
-        # Zmień nazwy kolumn
-        df = df.rename(columns=column_mapping)
+        logger.info(f"Znalezione kolumny: {list(df.columns)}")
+        logger.info(f"Liczba wierszy w CSV: {len(df)}")
 
-        print(f"Znalezione kolumny: {list(df.columns)}")
-        print(f"Liczba wierszy: {len(df)}")
+        imported_count = 0
 
         with db.atomic():
             for _, row in df.iterrows():
                 try:
-                    # Konwersja daty z formatu DD.MM.YYYY
-                    date_str = str(row["date"])
-                    date_obj = pd.to_datetime(date_str).date()
+                    if pd.isna(row["amount"]) or pd.isna(row["date"]) or pd.isna(row["category"]):
+                        logger.warning(f"Pomijam wiersz z brakującymi danymi: {row}")
+                        continue
 
-                    # Sprawdź czy rekord już istnieje
+                    # Parsowanie daty
+                    try:
+                        date_obj = pd.to_datetime(str(row["date"]), errors='raise').date()
+                    except Exception:
+                        logger.warning(f"Niepoprawna data, pomijam wiersz: {row}")
+                        continue
+
                     existing = Expense.get_or_none(Expense.id == int(row["id"]))
-
                     if existing:
-                        # Aktualizuj istniejący rekord
                         existing.amount = float(row["amount"])
                         existing.category = row["category"]
                         existing.date = date_obj
                         existing.save()
                     else:
-                        # Dodaj nowy rekord
                         Expense.create(
                             id=int(row["id"]),
                             amount=float(row["amount"]),
                             category=row["category"],
                             date=date_obj
                         )
-
+                    imported_count += 1
                 except Exception as e:
-                    print(f"Błąd przetwarzania wiersza {row}: {e}")
-                    print(f"Zawartość wiersza: {row}")
+                    logger.error(f"Błąd przetwarzania wiersza {row}: {e}")
                     continue
 
-        print(f"Import z CSV zakończony. Zaimportowano {len(df)} rekordów.")
+        logger.info(f"Import z CSV zakończony. Zaimportowano {imported_count} rekordów.")
 
-        # Pobierz wszystkie wydatki po imporcie
+        # Uzupełnienie kategorii
         expenses = list(Expense.select())
-
-        # Upewnij się, że wszystkie kategorie istnieją w tabeli Category
         ensure_categories(expenses)
 
+        return imported_count
+
     except FileNotFoundError:
-        print(f"Brak pliku CSV: {CSV_FILE}")
+        logger.error(f"Brak pliku CSV: {path_to_use}")
+        return 0
     except Exception as e:
-        print(f"Błąd importu CSV: {e}")
+        logger.error(f"Błąd importu CSV: {e}")
         import traceback
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
+        return 0
+
 def export_to_csv():
     try:
-        expenses = list(Expense.select().order_by(Expense.date))
-        if not expenses:
-            pd.DataFrame(columns=["ID", "Kwota", "Kategoria", "Data"]).to_csv(CSV_FILE, index=False)
+        expenses_query = list(Expense.select().order_by(Expense.date))
+        expense_list = list(expenses_query)  # Dopiero teraz konwertuj do listy
+        if not expense_list:
+            pd.DataFrame(columns=["ID", "Kwota", "Kategoria", "Data"]).to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
+            logger.info("Eksport pustej bazy do CSV zakończony.")
             return
+
         df = pd.DataFrame([{
             "ID": e.id,
             "Kwota": e.amount,
             "Kategoria": e.category,
             "Data": e.date
-        } for e in expenses])
-        df.to_csv(CSV_FILE, index=False)
-        print("Eksport do CSV zakończony.")
+        } for e in expense_list])
+
+        df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
+        logger.info(f"Eksport do CSV zakończony. Wyeksportowano {len(expense_list)} rekordów.")
     except Exception as e:
-        print(f"Błąd eksportu CSV: {e}")
+        logger.error(f"Błąd eksportu CSV: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
-
+# Debug info - można zostawić jako print, to się wyświetli tylko przy uruchomieniu
 print("Aktualna ścieżka CSV:", CSV_FILE)
 print("Czy plik istnieje?", os.path.exists(CSV_FILE))
 
-
 def reset_id_sequence():
-    """Resetuje sekwencję ID dla tabeli expense po imporcie CSV"""
+    """Resetuje sekwencję ID w Postgresie na podstawie max(id) w tabeli Expense"""
     if TEST_MODE:
-        print("TEST_MODE: pomijam reset sekwencji ID (SQLite nie wymaga)")
+        logger.info("TEST_MODE: pomijam reset sekwencji ID (SQLite nie wymaga)")
         return
 
     try:
         with db.atomic():
             max_id = Expense.select(fn.MAX(Expense.id)).scalar() or 0
-            db.execute_sql(f"SELECT setval('expense_id_seq', {max_id + 1}, false)")
-            print(f"Zresetowano sekwencję ID do: {max_id + 1}")
+            seq_name = Expense._meta.table_name + "_id_seq"
+
+            # db.execute_sql(f"SELECT setval('{seq_name}', {max_id + 1}, false)")
+
+            # Sprawdzenie czy sekwencja istnieje w Postgres
+            db.execute_sql(f"""
+                        DO $$
+                        BEGIN
+                            IF EXISTS (SELECT 1 FROM pg_class WHERE relname = '{seq_name}') THEN
+                                PERFORM setval('{seq_name}', {max_id + 1}, false);
+                            END IF;
+                        END $$;
+                        """)
+
+            logger.info(f"Zresetowano sekwencję ID ({seq_name}) do: {max_id + 1}")
     except Exception as e:
-        print(f"Błąd resetowania sekwencji ID: {e}")
+        logger.error(f"Błąd resetowania sekwencji ID: {e}")

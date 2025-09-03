@@ -14,7 +14,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Kopiujemy całą zawartość folderu app/ do katalogu roboczego w kontenerze
-COPY app/ .
+COPY . /app
 
 # Domyślne polecenie uruchamiające aplikację Streamlit
 # "--server.address=0.0.0.0" pozwala na dostęp do aplikacji spoza kontenera (np. z przeglądarki hosta)

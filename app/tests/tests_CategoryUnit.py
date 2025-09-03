@@ -1,22 +1,21 @@
 import os
-import unittest
-from unittest.mock import patch, MagicMock
-
 # Ustawienie trybu testowego, aby np. model wiedział, że działamy w trybie testowym
 os.environ['TEST_MODE'] = 'True'
 
-from models import Category
+import unittest
+from unittest.mock import patch, MagicMock
+from app.models import Category
 
 class TestCategoryWithMock(unittest.TestCase):
 
     def setUp(self):
         # Patchowanie metod Category, które normalnie komunikują się z bazą danych
         # Dzięki patchom możemy testować logikę metod bez faktycznego zapisu do bazy danych
-        self.get_all_patch = patch('models.Category.get_all_categories')
-        self.get_active_patch = patch('models.Category.get_active_categories')
-        self.create_patch = patch('models.Category.create_category')
-        self.delete_with_expenses_patch = patch('models.Category.delete_with_expenses')
-        self.deactivate_patch = patch('models.Category.deactivate_category')
+        self.get_all_patch = patch('app.models.Category.get_all_categories')
+        self.get_active_patch = patch('app.models.Category.get_active_categories')
+        self.create_patch = patch('app.models.Category.create_category')
+        self.delete_with_expenses_patch = patch('app.models.Category.delete_with_expenses')
+        self.deactivate_patch = patch('app.models.Category.deactivate_category')
 
         # Start patchy – przypisuje "zamockowane" obiekty
         self.mock_get_all = self.get_all_patch.start()
@@ -24,6 +23,7 @@ class TestCategoryWithMock(unittest.TestCase):
         self.mock_create = self.create_patch.start()
         self.mock_delete_with_expenses = self.delete_with_expenses_patch.start()
         self.mock_deactivate = self.deactivate_patch.start()
+
 
         # TC1: Tworzenie przykładowego obiektu Category z kolorem zdefiniowanym w PASTEL_COLORS
         self.sample_category = MagicMock()
@@ -38,7 +38,7 @@ class TestCategoryWithMock(unittest.TestCase):
 
     # TC2: Tworzenie kategorii z losowym kolorem (nie w PASTEL_COLORS)
     def test_create_category_with_random_color_logic(self):
-        from models import Category
+        from app.main import Category
         new_category = MagicMock()
         new_category.name = "X"
 
@@ -114,7 +114,7 @@ class TestCategoryWithMock(unittest.TestCase):
 
     # TC8: Generowanie unikalnego koloru (bez bazy danych)
     def test_generate_unique_color(self):
-        from models import Category
+        from app.main import Category
         # Zakładamy, że pewne kolory już istnieją
         # Nie chodzi o sprawdzanie zgodności z PASTEL_COLORS — to robią testy integracyjne, które operują na bazie i słowniku kolorów
         used_colors = ["#FFFFFF", "#000000", "#FF0000"]

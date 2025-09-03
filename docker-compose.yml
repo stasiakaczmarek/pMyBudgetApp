@@ -1,5 +1,5 @@
 # Wersja składni Docker Compose
-version: '3.8'
+# version: '3.8'
 
 services:
   # Definicja usługi bazy danych PostgreSQL
@@ -33,7 +33,22 @@ services:
     depends_on:
       - db
     volumes:
-      - ./data:/app/data
+      - .:/app
+    working_dir: /app
+    command: streamlit run app/main.py
+
+  tests:
+    build: .
+    environment:
+      # DATABASE_URL: postgresql://postgres:postgres@db:5432/mybudgetdb
+      TEST_MODE: 'true'
+    depends_on:
+      - db
+    volumes:
+      - ./tests:/app/tests
+    command: pytest app/tests --maxfail=1 --disable-warnings -q
+
+
 
 # Definicja wolumenu do przechowywania danych PostgreSQL
 volumes:

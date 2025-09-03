@@ -1,12 +1,14 @@
 import os
-import unittest
-from datetime import date
-from unittest.mock import patch, MagicMock
-
-# Ustawienie zmiennej środowiskowej (np. do logiki w modelach)
 os.environ['TEST_MODE'] = 'True'
 
-from models import Expense, Category
+from unittest.mock import patch, MagicMock
+import unittest
+from datetime import date
+from peewee import SqliteDatabase
+from app.models import Category, Expense
+
+# Tworzymy osobną bazę dla testów w pamięci
+test_db = SqliteDatabase(":memory:")
 
 # Mocki <=> testy jednostkowe
 # Nie ma bazy
@@ -17,12 +19,12 @@ class TestExpenseWithMock(unittest.TestCase):
     def setUp(self):
         # Tworzymy patch dla każdej metody, która korzysta z bazy danych
         # Dzięki temu testujemy logikę metody bez faktycznego zapisu do DB
-        self.get_all_patch = patch('models.Expense.get_all')
-        self.get_by_id_patch = patch('models.Expense.get_by_id')
-        self.create_expense_patch = patch('models.Expense.create_expense')
-        self.update_expense_patch = patch('models.Expense.update_expense')
-        self.delete_expense_patch = patch('models.Expense.delete_expense')
-        self.category_summary_patch = patch('models.Expense.category_summary')
+        self.get_all_patch = patch('app.models.Expense.get_all')
+        self.get_by_id_patch = patch('app.models.Expense.get_by_id')
+        self.create_expense_patch = patch('app.models.Expense.create_expense')
+        self.update_expense_patch = patch('app.models.Expense.update_expense')
+        self.delete_expense_patch = patch('app.models.Expense.delete_expense')
+        self.category_summary_patch = patch('app.models.Expense.category_summary')
 
         # Start patchy → każda metoda jest teraz zamockowana
         self.mock_get_all = self.get_all_patch.start()

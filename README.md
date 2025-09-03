@@ -64,7 +64,7 @@ Skrypt utworzy tabele w bazie danych i doda domyślne kategorie.
 Dla trybu SQLite (testowego - domyślny):
 ```bash
 $env:TEST_MODE = "true"
-streamlit run app/app.py
+streamlit run app/main.py
 ```
 Dla trybu PostgreSQL (opcjonalnie):
 Najpierw ustaw zmienne środowiskowe:
@@ -79,7 +79,7 @@ $env:TEST_MODE = "false"
 Następnie uruchom aplikację:
 
 ```bash
-streamlit run app/app.py
+streamlit run app/main.py
 ```
 
 Aplikacja będzie dostępna pod adresem: http://localhost:8501

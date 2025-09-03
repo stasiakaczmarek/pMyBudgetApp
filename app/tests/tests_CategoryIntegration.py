@@ -2,32 +2,32 @@ import os
 os.environ['TEST_MODE'] = 'True'
 
 import unittest
-from models import Category, Expense
-from database import db
-from colors import PASTEL_COLORS
-
+from app.models import Category, Expense
+from app.database import db
+from app.colors import PASTEL_COLORS
 
 class TestCategory(unittest.TestCase):
     # Każdy test startuje na świeżej, in-memory bazie SQLite.
 
     def setUp(self):
-        # Przygotowujemy bazę przed każdym testem, czyli
-        # Tworzymy połączenie z bazą w pamięci
+        # Zamknij istniejące połączenie jeśli jest otwarte
+        if db.is_connection_usable():
+            db.close()
         db.connect()
-        # Tworzymy tabele Expense i Category
-        db.create_tables([Expense, Category])
+        db.create_tables([Category, Expense])
 
     def tearDown(self):
-        # Czyszczenie bazy po każdym teście, aby każdy test zaczynał z pustą bazą
-        if not db.is_closed():
-            db.drop_tables([Expense, Category])
+        # Usuń tabele i zamknij połączenie
+        if Category.table_exists():
+            db.drop_tables([Category, Expense])
+        if db.is_connection_usable():
             db.close()
 
     # TC1: Tworzenie kategorii z kolorem zdefiniowanym w PASTEL_COLORS
     def test_create_category_with_preset_color(self):
         # Test sprawdza, że:
         # metoda create_category przypisuje kolor z PASTEL_COLORS, jeśli nazwa jest w słowniku
-        # -nowa kategoria ma is_active=True
+        # nowa kategoria ma is_active=True
         name = "Biżuteria"
         cat = Category.create_category(name, color=None)
         self.assertEqual(cat.name, name)
@@ -42,8 +42,6 @@ class TestCategory(unittest.TestCase):
         # unikalność w bazie,
         # poprawny format koloru,
         #aktywność kategorii.
-
-        from colors import PASTEL_COLORS
 
         name = "X"
 
@@ -124,8 +122,6 @@ class TestCategory(unittest.TestCase):
         # Sprawdza, czy każda nowa kategoria dostaje unikalny kolor:
         # względem istniejących już kategorii w bazie,
         # względem kolorów zdefiniowanych w PASTEL_COLORS.
-
-        from colors import PASTEL_COLORS
 
         # Zbieramy wszystkie istniejące kolory w bazie i PASTEL_COLORS
         existing_colors = set(c.color for c in Category.get_all_categories())

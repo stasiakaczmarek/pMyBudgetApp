@@ -1,9 +1,11 @@
 import os
-from app.database import db
-from app.models import Expense, Category
 
 # Włącz tryb testowy (SQLite)New-Item -Path . -Name "init_db.py" -ItemType "file"
 os.environ['TEST_MODE'] = 'true'
+
+from app.database import db
+from app.main import Expense, Category
+
 
 # Utwórz tabele
 db.create_tables([Expense, Category])

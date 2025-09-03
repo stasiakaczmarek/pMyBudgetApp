@@ -1,11 +1,14 @@
+import os
 from peewee import *
 from datetime import datetime
 from database import db
 from colors import PASTEL_COLORS
-import os
 
-# Określ, czy jesteśmy w trybie testowym
-TEST_MODE = os.getenv('TEST_MODE', 'False').lower() == 'true'
+
+if os.environ.get("TEST_MODE") == "True":
+    db = SqliteDatabase(":memory:")
+else:
+    db = SqliteDatabase("mybudget.db")
 
 
 class BaseModel(Model):
@@ -121,7 +124,9 @@ class Category(BaseModel):
         return cls.select().where(cls.is_active == True)
 
 
-# Tworzenie tabel tylko jeśli nie jesteśmy w trybie testowym
-# (w testach tabele będą tworzone przez test setup)
-if not TEST_MODE:
-    db.create_tables([Expense, Category])
+# # Tworzenie tabel tylko jeśli nie jesteśmy w trybie testowym
+# # (w testach tabele będą tworzone przez test setup)
+# if not TEST_MODE:
+#     db.create_tables([Expense, Category])
+db.connect()
+db.create_tables([Expense, Category])

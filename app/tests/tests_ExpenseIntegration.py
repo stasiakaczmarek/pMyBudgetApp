@@ -1,15 +1,13 @@
 import os
-# USTAWIENIE ZMIENNEJ ŚRODOWISKOWEJ PRZED IMPORTEM MODELI:
-# W wielu aplikacjach w zależności od tej zmiennej wybierana jest inna baza np. testowa
-# Dzięki temu testy nie naruszają prawdziwych danych
-os.environ['TEST_MODE'] = 'True'
-
+os.environ['TEST_MODE'] = 'True'   # <- ustawienie przed importem modeli
 
 import unittest
 from datetime import date
-# Import połączenia do bazy danych i modeli używanych w testach
-from database import db
-from models import Expense, Category
+from peewee import SqliteDatabase
+from app.models import Category, Expense
+
+# Tworzymy osobną bazę dla testów w pamięci
+test_db = SqliteDatabase(":memory:")
 
 
 # In-memory SQLite <=> testy integracyjne
@@ -20,30 +18,55 @@ from models import Expense, Category
 class TestExpense(unittest.TestCase):
 # Każdy test startuje na świeżej, in-memory bazie SQLite.
 
-    def setUp(self):
-        # Wykonywane przed każdym testem:
-        # Tworzy świeżą bazę i dane startowe
-        # Połącz z testową bazą SQLite w pamięci
-        db.connect()
-        # Utwórz tabele dla testowanych modeli
-        db.create_tables([Expense, Category])
 
-        # TC1: Tworzenie poprawnego wydatku
-        # Dodajemy pojedynczy, przykładowy wydatek jako dane wyjściowe do testów
+    def setUp(self):
+        test_db.bind([Category, Expense])
+        test_db.connect(reuse_if_open=True)
+        test_db.create_tables([Category, Expense])
+
         self.test_expense = Expense.create(
             amount=100.0,
             category="Zakupy",
             date=date(2024, 5, 1)
         )
-        # MA SENS, Tworzymy  wydatek, używany w większości testów
+
 
     def tearDown(self):
-        # Wykonywane po każdym teście:
-        # Czyści bazę i zamyka połączenie
-        if not db.is_closed():
-            # Usuń tabele, by kolejny test startował na czysto
-            db.drop_tables([Expense, Category])
-            db.close()
+        # Usuwamy tabele po każdym teście
+        test_db.drop_tables([Category, Expense])
+        test_db.close()
+
+    # def setUp(self):
+    #     # Wykonywane przed każdym testem:
+    #     # Tworzy świeżą bazę i dane startowe
+    #     # Połącz z testową bazą SQLite w pamięci
+    #     db.connect()
+    #     # Utwórz tabele dla testowanych modeli
+    #     db.create_tables([Expense, Category])
+
+    # def setUp(self):
+    #     # Zamknij istniejące połączenie jeśli jest otwarte
+    #     if db.is_connection_usable():
+    #         db.close()
+    #     db.connect()
+    #     db.create_tables([Category, Expense])
+    #
+    #     # TC1: Tworzenie poprawnego wydatku
+    #     # Dodajemy pojedynczy, przykładowy wydatek jako dane wyjściowe do testów
+    #     self.test_expense = Expense.create(
+    #         amount=100.0,
+    #         category="Zakupy",
+    #         date=date(2024, 5, 1)
+    #     )
+    #     # MA SENS, Tworzymy  wydatek, używany w większości testów
+
+    # def tearDown(self):
+    #     # Wykonywane po każdym teście:
+    #     # Czyści bazę i zamyka połączenie
+    #     if not db.is_closed():
+    #         # Usuń tabele, by kolejny test startował na czysto
+    #         db.drop_tables([Expense, Category])
+    #         db.close()
 
     # TC2: Pobieranie wszystkich wydatków
     def test_get_all_expenses(self):
