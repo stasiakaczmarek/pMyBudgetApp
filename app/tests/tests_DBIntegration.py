@@ -1,6 +1,9 @@
 from peewee import Model, CharField
-from app.database import db, init_db, close_db
 import unittest
+
+import os
+os.environ["TEST_MODE"] = "true"
+from app.database import db, init_db, close_db
 
 class DummyModel(Model):
     name = CharField()
@@ -19,3 +22,5 @@ class TestDatabaseIntegration(unittest.TestCase):
     def test_init_db_creates_tables(self):
         tables = db.get_tables()
         self.assertIn('dummymodel', tables)
+
+

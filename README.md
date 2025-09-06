@@ -1,12 +1,43 @@
 # Aplikacja do śledzenia wydatków
 
-Aplikacja webowa napisana w **Streamlit** z wykorzystaniem **Peewee ORM** i bazy danych **PostgreSQL** (w produkcji) lub **SQLite** (w trybie testowym). Umożliwia:
+Aplikacja webowa napisana w **Streamlit** z wykorzystaniem **Peewee ORM** i bazy danych **PostgreSQL** (w produkcji) lub **SQLite** (w trybie testowym).
 
-* dodawanie wydatków,
-* zarządzanie kategoriami,
-* analizę trendów,
-* eksport/import danych z pliku CSV,
-* interaktywne wykresy.
+---
+
+## Funkcjonalności
+
+* Struktura wydatków według kategorii (miesięcznie),
+* Udział procentowy kategorii w całkowitych wydatkach,
+* Narastająca suma wydatków w czasie,
+* Łączne wydatki w poszczególnych miesiącach,
+* Suma wszystkich wydatków z wyszczególnieniem kategorii,
+* Średnie miesięczne wydatki według kategorii,
+* Zarządzanie kategoriami (dodawanie, usuwanie, aktywacja, dezaktywacja),
+* Zarządzanie wydatkami (dodawanie, usuwanie, edycja),
+* Eksport/Import do pliku CSV.
+
+---
+
+## Struktura projektu
+
+```
+├── app/
+│   ├── tests/ 
+│   ├── __init__.py
+│   ├── backup.py   
+│   ├── categories.py        
+│   ├── colors.py      
+│   ├── database.py        
+│   ├── main.py  
+│   ├── models.py  
+│   ├── polish_months.py          
+│   └── 
+├── data/
+├── init_db.py.txt
+├── docker-compose.yml.txt
+├── Dockerfile
+└── README.md
+```
 
 ---
 
@@ -35,12 +66,14 @@ Jeżeli już masz venv, pomiń tworzenie.
 # Utworzenie środowiska (tylko za pierwszym razem)
 python -m venv venv
 ```
-# Aktywacja środowiska (PowerShell)
+Aktywacja środowiska (PowerShell)
+
 ```bash
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
 .\venv\Scripts\Activate.ps1
 ```
-# Aktywacja środowiska (CMD)
+Aktywacja środowiska (CMD)
+
 ```bash
 .\venv\Scripts\activate.bat
 ```
@@ -60,7 +93,7 @@ python init_db.py
 ```
 Skrypt utworzy tabele w bazie danych i doda domyślne kategorie.
 
-5. Uruchomienie aplikacji
+### 5. Uruchomienie aplikacji
 Dla trybu SQLite (testowego - domyślny):
 ```bash
 $env:TEST_MODE = "true"
@@ -84,6 +117,7 @@ streamlit run app/main.py
 
 Aplikacja będzie dostępna pod adresem: http://localhost:8501
 
+---
 
 ## Uruchomienie w Dockerze
 
@@ -107,40 +141,12 @@ docker run -d \
   wydatki-app
 ```
 
-### 3. (Opcjonalnie) Uruchomienie z docker-compose
+### 3. Uruchomienie z docker-compose
 
 Jeśli posiadasz plik `docker-compose.yml`, uruchom cały zestaw (aplikacja + PostgreSQL):
 
 ```bash
 docker-compose up --build
 ```
-
-Aplikacja będzie dostępna pod adresem: [http://localhost:8501](http://localhost:8501)
----
-
-## Struktura projektu
-
-```
-.
-├── app/
-│   ├── main.py          # Główna aplikacja Streamlit
-│   ├── models.py        # Modele Peewee (Expense, Category)
-│   ├── database.py      # Konfiguracja bazy (Postgres/SQLite)
-│   ├── backup.py        # Import/eksport CSV
-│   ├── colors.py        # Paleta kolorów dla kategorii
-│   └── data/expenses.csv # Domyślny plik CSV z wydatkami
-├── requirements.txt
-├── Dockerfile
-└── README.md
-```
-
----
-
-## Funkcjonalności
-
-* Podsumowania wydatków miesięcznych,
-* Średnie wydatki wg kategorii,
-* Trendy wydatków w czasie,
-* Zarządzanie kategoriami (dodawanie, usuwanie, blokowanie),
-* Eksport/Import do pliku CSV.
+Aplikacja będzie dostępna pod adresem: http://localhost:8501
 

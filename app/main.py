@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 # Import biblioteki plotly.express do tworzenia interaktywnych wykresów
 import plotly.express as px
-# Import klasy Expense z pliku models.py – reprezentuje pojedynczy wydatek
+# Import klas Expense, Category
 from models import Expense, Category
 # Import funkcji inicjalizującej bazę danych
 from database import init_db
@@ -17,6 +17,7 @@ def main():
 
     import os
 
+    # Lewy panel boczny – diagnostyka pliku CSV
     with st.sidebar:
         st.write("CSV_FILE:", CSV_FILE)
         st.write("CSV istnieje?", os.path.isfile(CSV_FILE))
@@ -24,6 +25,7 @@ def main():
     # Inicjalizacja połączenia z bazą danych
     init_db()
 
+    # Panel diagnostyczny – import CSV, reset sekwencji ID i licznik rekordów
     with st.sidebar:
         st.subheader("Diagnostyka")
         try:
@@ -47,25 +49,26 @@ def main():
         cats = [c.name for c in Category.get_all_categories()]
         return [c for c in cats if Category.get_or_none(Category.name == c)]
 
+    # Funkcja – analiza miesięcznych wydatków wg kategorii
     def monthly_expenses_by_category():
         try:
-            # Pobierz wszystkie wydatki
+            # Pobieramy wszystkie wydatki
             expenses = Expense.select()
             if not expenses:
                 st.info("Brak danych do wyświetlenia")
                 return
 
-            # Konwertuj do DataFrame
+            # Konwertujemy do df
             expense_df = pd.DataFrame([e.__data__ for e in expenses])
             expense_df['date'] = pd.to_datetime(expense_df['date'])
 
-            # Dodaj kolumnę z polską nazwą miesiąca (ZMIANA: użyj string zamiast Period)
+            # Dodajemy kolumny z miesiącami (string + polskie nazwy)
             expense_df['month_period'] = expense_df['date'].dt.to_period('M')
             expense_df['month_str'] = expense_df['month_period'].astype(str)
             expense_df['month_polish'] = expense_df['date'].dt.month.map(POLISH_MONTHS) + ' ' + expense_df[
                 'date'].dt.year.astype(str)
 
-            # Wybór miesiąca (ZMIANA: użyj month_str zamiast month_period)
+            # Wybór miesiąca przez użytkownika
             available_months = sorted(expense_df['month_str'].unique(), reverse=True)
             selected_month_str = st.selectbox(
                 "Wybierz miesiąc",
@@ -73,7 +76,7 @@ def main():
                 format_func=lambda x: f"{POLISH_MONTHS[int(x.split('-')[1])]} {x.split('-')[0]}"
             )
 
-            # Filtruj dane dla wybranego miesiąca
+            # Filtrujemy dane dla wybranego miesiąca
             filtered_df = expense_df[expense_df['month_str'] == selected_month_str]
 
             if filtered_df.empty:
@@ -82,16 +85,16 @@ def main():
                 st.info(f"Brak wydatków dla {polish_month_name}")
                 return
 
-            # Grupuj po kategorii i sumuj kwoty
+            # Grupujemy po kategorii i sumujemy kwoty
             category_summary = filtered_df.groupby('category')['amount'].sum().reset_index()
             category_summary = category_summary.sort_values('amount', ascending=False)
 
-            # Wyświetl podsumowanie
+            # Wyświetlamy nagłówek z podsumowaniem
             year, month = selected_month_str.split('-')
             polish_month_name = f"{POLISH_MONTHS[int(month)]} {year}"
             st.subheader(f"Suma wszystkich wydatków w {polish_month_name}")
 
-            # Tabela z wydatkami
+            # Wyświetlamy tabele z wydatkami
             st.dataframe(
                 category_summary.rename(columns={
                     'category': 'Kategoria',
@@ -99,6 +102,7 @@ def main():
                 }).set_index('Kategoria')
             )
 
+            # Ustalamy unikalne kolory dla kategorii
             categories_in_data = filtered_df['category'].unique()
             color_map = {}
             for cat in categories_in_data:
@@ -109,7 +113,7 @@ def main():
                     c = Category.create_category(cat, color=None)
                     color_map[cat] = c.color
 
-            # Wykres słupkowy
+            # Tworzymy wykres słupkowy
             fig = px.bar(
                 category_summary,
                 x='category',
@@ -122,13 +126,14 @@ def main():
             fig.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig, use_container_width=True)
 
-            # Podsumowanie ogólne
+            # Wyświetlamy sumę wydatków
             total = category_summary['amount'].sum()
             st.metric("Łączna kwota", f"{total:.2f} zł")
 
         except Exception as e:
             st.error(f"Błąd podczas przetwarzania danych: {str(e)}")
 
+    # Funkcja – zarządzanie wydatkami (lista, edycja, usuwanie)
     def manage_expenses():
         try:
             expenses = list(Expense.select().order_by(Expense.date.desc()))
@@ -136,7 +141,7 @@ def main():
                 st.warning("Brak wydatków. Dodaj pierwszy wydatek w formularzu powyżej.")
                 return
 
-            # Tabela
+            # Wyświetlamy tabelę z dodanymi wydatkami
             expense_df = pd.DataFrame([{
                 'ID': e.id,
                 'Kwota': e.amount,
@@ -145,7 +150,7 @@ def main():
             } for e in expenses])
             st.dataframe(expense_df.set_index('ID'))
 
-            # Wpisanie ID wydatku ręcznie
+            # Wpisanie ID wydatku ręcznie (generuje to najmniej błędów)
             first_id = expenses[0].id if expenses else 1
             selected_id = st.number_input(
                 "Wpisz ID wydatku do edycji/usunięcia",
@@ -154,7 +159,7 @@ def main():
                 value=first_id
             )
 
-            # Sprawdzenie czy wydatek istnieje
+            # Sprawdzamy czy wydatek istnieje
             expense_to_edit = Expense.get_or_none(Expense.id == selected_id)
             if not expense_to_edit:
                 st.info("Nie znaleziono wydatku o takim ID.")
@@ -163,7 +168,7 @@ def main():
             col1, col2 = st.columns(2)
 
             with col1:
-                # Formularz edycji
+                # Formularz edycji wydatku
                 with st.form("edit_expense"):
                     old_amount = expense_to_edit.amount
                     old_category = expense_to_edit.category
@@ -183,7 +188,7 @@ def main():
                         expense_to_edit.save()
                         export_to_csv()
 
-                        # Tworzymy komunikat tylko z faktycznych zmian
+                        # Tworzymy komunikat tylko z faktycznymi zmianami
                         msg_lines = [f"Wydatek ID {selected_id} zaktualizowany:"]
                         if old_amount != new_amount:
                             msg_lines.append(f"- Kwota: {old_amount:.2f} → {new_amount:.2f}")
@@ -192,14 +197,15 @@ def main():
                         if old_date != new_date:
                             msg_lines.append(f"- Data: {old_date} → {new_date}")
 
-                        # Jeśli nic się nie zmieniło, pokaż informację
+                        # Jeśli nic się nie zmieniło, mamy informację o braku zmian
                         if len(msg_lines) == 1:
                             msg_lines.append("Brak zmian.")
 
                         st.success("\n".join(msg_lines))
 
+            # Dwie kolumny w kolumnie col2: jedna na przycisk Usuń, druga na przycisk Odśwież
             with col2:
-                col2a, col2b = st.columns(2)  # Dwie kolumny w kolumnie col2: jedna na Usuń, druga na Odśwież
+                col2a, col2b = st.columns(2)
 
                 with col2a:
                     if st.button("Usuń wydatek", key="delete_button"):
@@ -221,13 +227,13 @@ def main():
         except Exception as e:
             st.error(f"Błąd ładowania danych: {str(e)}")
 
-
+    # Funkcja – zarządzanie kategoriami (dodawanie, usuwanie, aktywacja, dezaktywacja)
     def manage_categories():
         # Pobierz wszystkie kategorie z bazy
         all_categories = [c.name for c in Category.get_all_categories()]
         active_categories = [c.name for c in Category.get_active_categories()]
 
-        # --- Dodawanie nowej kategorii ---
+        # Formularz dodania nowej kategorii
         with st.form("add_category_form"):
             new_category = st.text_input("Nowa kategoria")
             if st.form_submit_button("Dodaj kategorię"):
@@ -243,7 +249,7 @@ def main():
                     except Exception as e:
                         st.error(f"Błąd dodawania kategorii: {e}")
 
-        # --- Usuwanie kategorii wraz z wydatkami ---
+        # Formularz usuwania kategorii wraz z wydatkami
         with st.form("remove_category_form"):
             category_to_remove = st.selectbox(
                 "Wybierz kategorię do usunięcia",
@@ -254,7 +260,8 @@ def main():
                 try:
                     deleted = Category.delete_with_expenses(category_to_remove)
                     if deleted:
-                        export_to_csv()  # Zaktualizuj CSV
+                        # Zaktualizujemy CSV
+                        export_to_csv()
                         st.success(
                             f"Usunięto kategorię i wszystkie wydatki w niej zawarte: {category_to_remove}"
                         )
@@ -264,7 +271,7 @@ def main():
                     st.error(f"Błąd usuwania kategorii: {e}")
                 st.experimental_rerun()
 
-        # --- Dezaktywacja kategorii ---
+        # Formularz dezaktywacji kategorii
         if active_categories:
             with st.form("deactivate_category_form"):
                 category_to_deactivate = st.selectbox(
@@ -284,7 +291,7 @@ def main():
         else:
             st.info("Brak aktywnych kategorii do dezaktywacji")
 
-        # --- Aktywacja kategorii ---
+        # Formularz aktywacji kategorii
         inactive_categories = [c.name for c in Category.get_all_categories() if not c.is_active]
         if inactive_categories:
             with st.form("activate_category_form"):
@@ -308,7 +315,7 @@ def main():
         else:
             st.info("Brak nieaktywnych kategorii do aktywacji")
 
-
+    # Funkcja – średnie miesięczne wydatki wg kategorii
     def average_monthly_expense_by_category():
         expenses = Expense.select()
         if not expenses:
@@ -318,13 +325,13 @@ def main():
         df = pd.DataFrame([e.__data__ for e in expenses])
         df['date'] = pd.to_datetime(df['date'])
 
-        # Wyodrębnij rok i miesiąc
+        # Chcemy wyodrębnić rok i miesiąc
         df['year_month'] = df['date'].dt.to_period('M')
 
-        # Suma wydatków miesięcznie po kategorii
+        # Sumujemy wydatki miesięcznie po kategorii
         monthly_sum = df.groupby(['year_month', 'category'])['amount'].sum().reset_index()
 
-        # Średnia miesięczna po kategorii
+        # Chcemy uzyskać średnie miesięczne wydatki dla każdej kategorii
         avg_df = monthly_sum.groupby('category')['amount'].mean().reset_index()
         avg_df = avg_df.rename(columns={'amount': 'Średni wydatek (zł)', 'category': 'Kategoria'})
         avg_df = avg_df.sort_values('Średni wydatek (zł)', ascending=False)
@@ -336,8 +343,8 @@ def main():
     # Tytuł aplikacji
     st.title("Śledź swoje wydatki")
 
-    # Formularz do dodawania nowego wydatku
 
+    # Formularz do dodania nowego wydatku
     with st.form("new_expense"):
         amount = st.number_input("Kwota", min_value=0.01, step=0.01)
 
@@ -358,58 +365,56 @@ def main():
                 except ValueError as e:
                     st.error(f"Niepoprawny wydatek: {e}")
 
-
-    # Zmień linię tworzącą zakładki na:
+    # Zakładki aplikacji
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["Podsumowanie", "Analiza trendów", "Miesięczne wydatki", "Zarządzanie wydatkami", "Zarządzanie kategoriami"])
 
     # Zawartość pierwszej zakładki - Podsumowanie
     with tab1:
-        # Pobieramy wszystkie wydatki i dokonujemy konwersji do DataFrame
+        # Pobieramy wszystkie wydatki i dokonujemy konwersji do df
         expenses = Expense.select()
         expense_df = pd.DataFrame([e.__data__ for e in expenses])
         categories_in_data = expense_df['category'].unique()
         color_map = {}
         for cat in categories_in_data:
-            # Pobierz obiekt kategorii z bazy
+            # Pobieramy obiekt kategorii z bazy
             c = Category.get_or_none(Category.name == cat)
             if c:
                 color_map[cat] = c.color
             else:
-                # Jeśli kategorii nie ma w bazie, stwórz ją z unikalnym kolorem
+                # Jeśli kategorii nie ma w bazie, tworzymy ją z unikalnym kolorem
                 c = Category.create_category(cat, color=None)
                 color_map[cat] = c.color
 
         if not expense_df.empty:
-            # Konwersja daty do formatu datetime i wyodrębnienie miesiąca
+            # Konwertujemy daty do formatu datetime
             expense_df['date'] = pd.to_datetime(expense_df['date'])
-            # expense_df['month'] = expense_df['date'].dt.to_period('M')
 
-            # Dodaj polskie nazwy miesięcy (używaj tylko stringów)
+            # Dodajemy polskie nazwy miesięcy (używamy tylko stringów)
             expense_df['month_str'] = expense_df['date'].dt.to_period('M').astype(str)
             expense_df['month_polish'] = expense_df['date'].dt.month.map(POLISH_MONTHS) + ' ' + expense_df[
                 'date'].dt.year.astype(str)
 
-            # Grupowanie danych po stringach zamiast Period
+            # Grupujemy dane po stringach
             monthly_df = expense_df.groupby(['month_str', 'month_polish', 'category'])['amount'].sum().reset_index()
             monthly_df = monthly_df.sort_values('month_str')
 
-            # PRZED tworzeniem fig (bar) i fig_pie:
+            # Przed tworzeniem fig (bar) i fig_pie:
             category_df = expense_df.groupby('category')['amount'].sum().reset_index()
 
-            # Kolejność: od największej do najmniejszej
+            # Chcemy aby były w kolejności od największej do najmniejszej
             category_order = (category_df.sort_values('amount', ascending=False)['category'].tolist()
             )
 
             # Dodajemy kolumnę datetime dla pierwszego dnia miesiąca
             monthly_df['month_date'] = pd.to_datetime(monthly_df['month_str'] + '-01')
 
-            # Sortowanie po dacie
+            # Sortujemy po dacie
             monthly_df = monthly_df.sort_values('month_date')
 
-            # Wykres
+            # Wykres słupkowy
             fig = px.bar(
                 monthly_df,
-                x='month_polish',  # dalej pokazujemy polskie nazwy
+                x='month_polish',
                 y='amount',
                 color='category',
                 barmode='stack',
@@ -419,7 +424,7 @@ def main():
                 category_orders={'category': category_order}
             )
 
-            # Ustawienie osi x w kolejności daty
+            # Ustawiamy oś x w kolejności daty
             fig.update_layout(xaxis={'categoryorder': 'array', 'categoryarray': monthly_df['month_polish'].tolist()})
             fig.update_xaxes(tickangle=-45)
             fig.update_layout(
@@ -451,7 +456,7 @@ def main():
                 values='amount',
                 names='category',
                 title="Udział procentowy kategorii w całkowitych wydatkach",
-                # Używamt kategorii jako kolorów
+                # Używamy kategorii jako kolorów
                 color='category',
                 color_discrete_map=color_map,
                 # Dodajemy dziurę w środku dla lepszej czytelności
@@ -459,7 +464,7 @@ def main():
                 category_orders = {'category': category_order}
             )
 
-            # TE SAME USTAWIENIA CO DLA WYKRESU SŁUPKOWEGO:
+            # Dajemy te same ustawienia co dla wykresu słupkowego
             fig_pie.update_layout(
                 legend=dict(
                     orientation="v",
@@ -477,21 +482,21 @@ def main():
         else:
             st.info("Brak danych do wyświetlenia")
 
-    # Zawartość drugiej zakładki - Trendy
+    # Zawartość drugiej zakładki - Analiza trendów
     with tab2:
         expenses = Expense.select().order_by(Expense.date)
         if expenses:
             trend_df = pd.DataFrame([e.__data__ for e in expenses])
 
-            # Konwersja daty do formatu datetime
+            # Konwertujemy daty do formatu datetime
             trend_df['date'] = pd.to_datetime(trend_df['date'])
 
-            # Dodaj polskie nazwy miesięcy
+            # Dodajemy polskie nazwy miesięcy
             trend_df['month_str'] = trend_df['date'].dt.to_period('M').astype(str)
             trend_df['month_polish'] = trend_df['date'].dt.month.map(POLISH_MONTHS) + ' ' + trend_df['date'].dt.year.astype(
                 str)
 
-            # Suma skumulowana
+            # Obliczamy sumę skumulowaną
             trend_df['cumulative'] = trend_df['amount'].cumsum()
 
             # Wykres trendu skumulowanego
@@ -501,13 +506,12 @@ def main():
                                 title='Narastająca suma wydatków w czasie',
                                 labels={'date': 'Miesiąc', 'cumulative': 'Suma skumulowana (zł)'})
 
-            # Pobierz unikalne daty z danych
+            # Pobieramy unikalne daty z danych
             unique_dates = trend_df['date'].dt.to_period('M').unique().astype('datetime64[M]')
 
-            # Utwórz polskie etykiety
+            # Twotzymy polskie etykiety
             polish_labels = [f"{POLISH_MONTHS[date.month]} {date.year}" for date in unique_dates]
 
-            # Zastosuj niestandardowe etykiety
             fig_trend.update_layout(
                 xaxis=dict(
                     tickmode='array',
@@ -519,7 +523,7 @@ def main():
 
             st.plotly_chart(fig_trend)
 
-            # Wydatki miesięczne
+            # Tworzymy wydatki miesięczne
             monthly_trend = trend_df.copy()
             monthly_summary = monthly_trend.groupby(['month_str', 'month_polish'])['amount'].sum().reset_index()
             monthly_summary = monthly_summary.sort_values('month_str')
@@ -535,11 +539,11 @@ def main():
         else:
             st.info("Brak danych do analizy trendów")
 
-    # Zawartość trzeciej zakładki - Wydatki miesięczne
+    # Zawartość trzeciej zakładki - Miesięczne wydatki
     with tab3:
         monthly_expenses_by_category()
 
-        # Wywołanie funkcji i tworzenie wykresu
+        # Wywołujemy funkcje i tworzymy wykres
         avg_df = average_monthly_expense_by_category()
         if avg_df is not None and not avg_df.empty:
             fig_avg = px.bar(
@@ -548,18 +552,16 @@ def main():
                 y='Średni wydatek (zł)',
                 title="Średni miesięczny wydatek po kategorii",
                 labels={'category': 'Kategoria', 'Średni wydatek (zł)': 'Średni wydatek (zł)'},
-                color='Średni wydatek (zł)',  # Kolorowanie słupków według wartości
-                color_continuous_scale='Viridis'  # Ładna skala kolorów
+                color='Średni wydatek (zł)',
+                color_continuous_scale='Viridis'
             )
-
-            # Poprawa układu wykresu
             fig_avg.update_layout(
                 xaxis_tickangle=-45,
-                height=500,  # Wysokość wykresu
+                height=500,
                 showlegend=False
             )
 
-            # Formatowanie osi Y (waluta)
+            # Formatujemy oś Y
             fig_avg.update_yaxes(tickprefix="zł ", tickformat=",.0f")
 
             st.plotly_chart(fig_avg, use_container_width=True)
