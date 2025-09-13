@@ -14,13 +14,13 @@ class TestBackupIntegration(unittest.TestCase):
     # Testują cały flow z rzeczywistymi plikami i bazą
 
     def setUp(self):
-        # Połączenie z bazą i utworzenie tabel
-        # if not db.is_closed():
-        #     db.close()
-        # db.connect()
-        # db.create_tables([Category, Expense])
         Expense.delete().execute()
         Category.delete().execute()
+        # Połączenie z bazą i utworzenie tabel
+        if not db.is_closed():
+            db.close()
+        db.connect()
+        db.create_tables([Category, Expense])
 
         # Tymczasowy plik CSV
         self.temp_csv = tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8-sig')
@@ -33,12 +33,13 @@ class TestBackupIntegration(unittest.TestCase):
         self.backup_module = backup
 
     def tearDown(self):
-        # Usuwamy tabele i zamykamy połączenie
-        # if not db.is_closed():
-        #     db.drop_tables([Expense, Category])
-        #     db.close()
         Expense.delete().execute()
         Category.delete().execute()
+        # Usuwamy tabele i zamykamy połączenie
+        if not db.is_closed():
+            db.drop_tables([Expense, Category])
+            db.close()
+
         import app.backup as backup
         backup.CSV_FILE = self.original_csv_file
 
@@ -167,12 +168,6 @@ class TestBackupIntegration(unittest.TestCase):
         df = pd.DataFrame(test_data)
         df.to_csv(self.temp_csv.name, index=False, encoding="utf-8")
 
-        # import_from_csv()
-        # expenses = list(Expense.select())
-        # self.assertEqual(len(expenses), 0)
-        # self.assertEqual(expenses[0].amount, 200.0)
-        # self.assertEqual(expenses[0].category, "Transport")
-        # self.assertEqual(str(expenses[0].date), "2024-05-02")
 
         # CSV z błędną datą – rekord ma zginąć
         import_from_csv()
@@ -191,14 +186,6 @@ class TestBackupIntegration(unittest.TestCase):
         df = pd.DataFrame(test_data)
         df.to_csv(self.temp_csv.name, index=False, encoding="utf-8")
 
-        # import_from_csv()
-        # expenses = list(Expense.select())
-        # self.assertEqual(len(expenses), 0)
-        # amounts = [exp.amount for exp in expenses]
-        # categories = [exp.category for exp in expenses]
-        # self.assertNotIn(None, amounts)
-        # self.assertNotIn(None, categories)
-
         # CSV z brakującą kwotą lub datą – rekord ma zginąć
         import_from_csv()
         expenses = list(Expense.select())
@@ -212,49 +199,4 @@ class TestBackupIntegration(unittest.TestCase):
         df = pd.read_csv(self.temp_csv.name, encoding='utf-8-sig')
         expected_columns = ["ID", "Kwota", "Kategoria", "Data"]
         self.assertListEqual(list(df.columns), expected_columns)
-
-
-    # TC5: Import CSV z polskimi znakami
-    # def test_import_csv_with_polish_chars(self):
-    #     # Przygotuj dane z nagłówkami w formie oczekiwanej przez importer
-    #     test_data = {
-    #         "id": [1, 2],
-    #         "kwota": [150.0, 250.0],
-    #         "kategoria": ["Żółć", "Święta"],
-    #         "data": ["2024-05-01", "2024-05-02"]
-    #     }
-    #     df = pd.DataFrame(test_data)
-    #
-    #     # Tymczasowy plik CSV
-    #     with tempfile.NamedTemporaryFile(delete=False, suffix=".csv", mode="w", encoding="utf-8-sig", newline="") as tmp:
-    #         df.to_csv(tmp.name, index=False, encoding="utf-8-sig")
-    #         temp_path = tmp.name
-    #
-    #     try:
-    #         # Wyczyść bazę wydatków
-    #         Expense.delete().execute()
-    #
-    #         # Utwórz wymagane kategorie w tabeli Category
-    #         import random
-    #         def random_color():
-    #             return f"#{random.randint(0, 0xFFFFFF):06X}"
-    #
-    #         for cat_name in ["Żółć", "Święta"]:
-    #             Category.get_or_create(name=cat_name, defaults={"color": random_color()})
-    #
-    #         # Import danych z CSV
-    #         from app import backup
-    #         imported_count = backup.import_from_csv(csv_file=temp_path)
-    #         print("Zaimportowane rekordy:", imported_count)
-    #
-    #         # Asercja – licznik zwrócony przez funkcję
-    #         assert imported_count == 2
-    #
-    #     finally:
-    #         # Sprzątanie pliku
-    #         if os.path.exists(temp_path):
-    #             os.remove(temp_path)
-
-
-
 
